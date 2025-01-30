@@ -1,6 +1,7 @@
 [submodule "contrib/librunt"]
 	path = contrib/librunt
 	url = https://github.com/stephenrkell/librunt.git
+	branch = master
 [submodule "contrib/xed"]
 	path = contrib/xed
 	url = https://github.com/intelxed/xed.git
@@ -16,6 +17,8 @@
 [submodule "contrib/libx86emulate"]
 	path = contrib/libx86emulate
 	url = https://github.com/stephenrkell/libx86emulate.git
+	branch = decode-only-extended
 [submodule "contrib/donald"]
 	path = contrib/donald
 	url = https://github.com/stephenrkell/donald
+	branch = no-ocaml
