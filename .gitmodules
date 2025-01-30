@@ -4,16 +4,18 @@
 [submodule "contrib/xed"]
 	path = contrib/xed
 	url = https://github.com/intelxed/xed.git
+	ignore = all
 [submodule "contrib/mbuild"]
 	path = contrib/mbuild
 	url = https://github.com/intelxed/mbuild.git
+	ignore = all
 [submodule "contrib/musl"]
 	path = contrib/musl
 	url = git://git.musl-libc.org/musl
+	ignore = all
 [submodule "contrib/libx86emulate"]
-        path = contrib/libx86emulate
-        url = https://github.com/stephenrkell/libx86emulate.git
-
+	path = contrib/libx86emulate
+	url = https://github.com/stephenrkell/libx86emulate.git
 [submodule "contrib/donald"]
 	path = contrib/donald
 	url = https://github.com/stephenrkell/donald
