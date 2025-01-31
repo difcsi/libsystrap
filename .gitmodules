@@ -1,6 +1,6 @@
 [submodule "contrib/librunt"]
 	path = contrib/librunt
-	url = https://github.com/stephenrkell/librunt.git
+	url = https://github.com/difcsi/librunt.git
 	branch = master
 [submodule "contrib/xed"]
 	path = contrib/xed
