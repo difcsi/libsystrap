@@ -26,6 +26,17 @@ void replace_instruction_with(unsigned char *pos, unsigned len,
 		unsigned char const *replacement, unsigned replacement_len);
 void replace_syscall_with_ud2(unsigned char *pos, unsigned len);
 
+/* Coexisting with other users of ud2 / SIGILL (e.g. Alaska's GC-style
+ * safepoints, which patch ud2 into poll points and field SIGILL themselves).
+ * We trap syscalls using ud2, but record every site we trapped; a SIGILL whose
+ * faulting instruction is NOT one of our recorded trap sites is forwarded to
+ * the client handler registered here, if any (otherwise we abort, as before).
+ * The handler is invoked SA_SIGINFO-style: (signum, siginfo_t *, ucontext_t *),
+ * with the kernel's siginfo and ucontext; it may modify the ucontext to control
+ * resumption, exactly as if it had been installed directly. */
+void __systrap_set_sigill_handler(void (*handler)(int signum, void *info, void *uctxt));
+void (*__systrap_get_sigill_handler(void))(int, void *, void *);
+
 /* really funky clients, e.g. a ld.so, might not run their own constructor, so ... */
 void __libsystrap_force_init(void) __attribute__((visibility("hidden")));
 
@@ -57,8 +68,30 @@ typedef void /*(__attribute__((noreturn))*/ syscall_replacement/*)*/(
 
 extern syscall_replacement *replaced_syscalls[SYSCALL_MAX];
 
+/* When non-zero, a clone/clone3 child resumes by doing rt_sigreturn directly
+ * from the copied sigframe rather than unwinding the SIGILL handler's epilogue.
+ * Default 0 (legacy emulation). Clients that hit the unwind race (e.g. liballocs
+ * with Alaska's pthread_create interposer) set this to 1. See do_clone/do_clone3
+ * in src/do-syscall.h. */
+extern int __systrap_clone_child_direct_sigreturn;
+
 void __systrap_pre_handling(struct generic_syscall *gsp);
 void __systrap_post_handling(struct generic_syscall *gsp, long int ret, _Bool do_sigframe_resume);
 void __libsystrap_noop_post_handling(struct generic_syscall *gsp, long int ret, _Bool do_sigframe_resume);
+
+/* While a thread is inside handle_sigill emulating a syscall, these return the
+ * saved application stack pointer / instruction pointer at the syscall site;
+ * otherwise they return NULL. They let another preloaded runtime (e.g. Alaska's
+ * GC barrier) detect an in-systrap thread -- which is parked in a syscall, hence
+ * at a GC-safe point -- and scan its roots from the saved context rather than
+ * unwinding across the nested handler frames.
+ *
+ * The *_internal extractors are defined in libsystrap (they need the private
+ * sigframe layout) but are not exported from the host DSO (libsystrap.a is
+ * --exclude-libs'd); the host (liballocs) re-exports the public forwarders. */
+void *__systrap_saved_sp_internal(void);
+void *__systrap_saved_ip_internal(void);
+void *__systrap_current_saved_sp(void);
+void *__systrap_current_saved_ip(void);
 
 #endif
