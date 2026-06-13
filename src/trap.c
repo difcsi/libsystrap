@@ -198,11 +198,18 @@ void trap_one_instruction_range(unsigned char *begin_instr_pos, unsigned char *e
 		begin_instr_pos, end_instr_pos, /*debug_buf */ "FIXME: reinstate debug printout");
 	struct set_trap_closure clos = { .set_trap = set_trap, .set_trap_arg = set_trap_arg };
 	walk_instructions(begin_instr_pos, end_instr_pos, maybe_set_trap_cb, &clos);
-	/* Now the paranoid second scan: check for in-betweens. */
+	/* Now the paranoid second scan: check for in-betweens. This walks every
+	 * byte of the region, so keep it cheap. Every syscall-like instruction
+	 * (syscall=0f 05, sysenter=0f 34, int 0x80=cd 80) begins with 0x0f or
+	 * 0xcd, and is_syscall_instr() -- an out-of-line call into another TU --
+	 * returns nonzero only for those leading bytes. So gate the call on a
+	 * cheap inline first-byte test; this changes nothing about which
+	 * positions are flagged, but skips the call for ~99% of bytes. */
 	unsigned char *instr_pos = (unsigned char *) begin_page; // start from the real beginning
 	while (instr_pos != end_page)
 	{
-		if (is_syscall_instr(instr_pos, end_instr_pos))
+		unsigned char b = *instr_pos;
+		if ((b == 0x0f || b == 0xcd) && is_syscall_instr(instr_pos, end_instr_pos))
 		{
 			debug_printf(1, "Warning: after instrumentation, bytes at %p "
 				"could make a syscall on violation of control flow integrity\n",

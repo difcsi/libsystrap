@@ -24,6 +24,17 @@ __attribute__ ((noinline)) static void _handle_sigill_debug_printf(int level, co
 	 va_end(vl);
 }
 
+/* handle_sigill() runs on every trapped syscall, so it is the library's
+ * hot path. Guard the debug printf with the level check *before* the call,
+ * exactly as the normal debug_printf macro does. This keeps the common case
+ * (debugging disabled) free of an unconditional varargs call and the
+ * evaluation of its arguments. We still funnel actual output through the
+ * noinline _handle_sigill_debug_printf so it remains distinguishable for
+ * footprint filtering. */
+#define handle_sigill_debug_printf(level, ...) \
+	do { if ((level) <= systrap_debug_level) \
+		_handle_sigill_debug_printf((level), __VA_ARGS__); } while (0)
+
 /* FIXME: for thread-safety, saved_sysinfo should be a local
  * which we thread through to our callees, all the way to the
  * resume function. How do we get it to the restorer? We can
@@ -62,12 +73,12 @@ void handle_sigill(int n)
 #endif
 
 	/* Decode the syscall using sigcontext. */
-	_handle_sigill_debug_printf(1, "Took a trap from instruction at %p",
+	handle_sigill_debug_printf(1, "Took a trap from instruction at %p",
 			(void*) p_frame->uc.uc_mcontext.MC_REG_IP);
 #ifdef EXECUTABLE
 	if (p_frame->uc.uc_mcontext.MC_REG_IP == (uintptr_t) ignore_ud2_addr)
 	{
-		_handle_sigill_debug_printf(1, " which is our test trap address; continuing.\n");
+		handle_sigill_debug_printf(1, " which is our test trap address; continuing.\n");
 		resume_from_sigframe(0, p_frame, 2);
 #if defined(__i386__)
 		*(void**)(tls+16) = saved_sysinfo;
@@ -85,7 +96,7 @@ void handle_sigill(int n)
 #endif
 	assert(syscall_num >= 0);
 	assert(syscall_num < SYSCALL_MAX);
-	_handle_sigill_debug_printf(1, " which we think is syscall %s/%ld\n",
+	handle_sigill_debug_printf(1, " which we think is syscall %s/%ld\n",
 		&syscall_names[0] ? syscall_names[syscall_num] : "(names not linked in)", syscall_num);
 
 #if 0
@@ -241,7 +252,7 @@ void handle_sigill(int n)
 	 * this function.
 	 */
 	__systrap_pre_handling(&gsp);
-	if (replaced_syscalls[gsp.syscall_number])
+	if (unlikely(replaced_syscalls[gsp.syscall_number] != NULL))
 	{
 		/* Since replaced_syscalls holds function pointers, these calls will 
 		 * not be inlined. It follows that if the call ends up doing a real
@@ -271,7 +282,7 @@ void handle_sigill(int n)
 		do_generic_syscall_and_fixup(&gsp);
 	}
 out:
-	_handle_sigill_debug_printf(1, "Resuming from instruction at %p\n", p_frame->uc.uc_mcontext.MC_REG_IP);
+	handle_sigill_debug_printf(1, "Resuming from instruction at %p\n", p_frame->uc.uc_mcontext.MC_REG_IP);
 #if defined(__i386__)
 	*(void**)(tls+16) = saved_sysinfo;
 	return;
